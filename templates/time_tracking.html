@@ -133,81 +133,29 @@
     {{end}}
 </div>
 
-{{if $data.periodSummary}}
+{{if $data.dailySummary}}
 <div class="card">
     <div class="card-header">
-        <h3>{{$data.summaryLabel}}工时汇总</h3>
-        <div class="card-actions">
-            <div class="period-tabs">
-                <a href="/time?period=day" class="period-tab {{if eq $data.periodFilter "day"}}active{{end}}">按日</a>
-                <a href="/time?period=week" class="period-tab {{if eq $data.periodFilter "week"}}active{{end}}">按周</a>
-                <a href="/time?period=month" class="period-tab {{if eq $data.periodFilter "month"}}active{{end}}">按月</a>
-            </div>
-        </div>
+        <h3>本周工时汇总</h3>
     </div>
-    
-    <div class="summary-stats">
-        <div class="summary-stat">
-            <div class="summary-stat-value">{{printf "%.1f" $data.totalHours}}h</div>
-            <div class="summary-stat-label">总工时</div>
-        </div>
-        <div class="summary-stat">
-            <div class="summary-stat-value">¥{{printf "%.0f" $data.totalAmount}}</div>
-            <div class="summary-stat-label">总金额</div>
-        </div>
-        <div class="summary-stat">
-            <div class="summary-stat-value">¥{{printf "%.0f" $data.avgRate}}</div>
-            <div class="summary-stat-label">平均时薪</div>
-        </div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
-        <div>
-            <h4 style="margin: 0 0 10px 0;">时间分布</h4>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>周期</th>
-                        <th>工时</th>
-                        <th>金额</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range $data.periodSummary}}
-                    <tr>
-                        <td>{{.Label}}</td>
-                        <td>{{printf "%.1f" .Hours}}h</td>
-                        <td>¥{{printf "%.0f" .Amount}}</td>
-                    </tr>
-                    {{end}}
-                </tbody>
-            </table>
-        </div>
-        <div>
-            <h4 style="margin: 0 0 10px 0;">项目分布</h4>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>项目</th>
-                        <th>工时</th>
-                        <th>金额</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range $data.projectSummaryList}}
-                    <tr>
-                        <td>{{.ProjectName}}</td>
-                        <td>{{printf "%.1f" .Hours}}h</td>
-                        <td>¥{{printf "%.0f" .Amount}}</td>
-                    </tr>
-                    {{end}}
-                    {{if not $data.projectSummaryList}}
-                    <tr><td colspan="3" class="empty-state">暂无数据</td></tr>
-                    {{end}}
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>日期</th>
+                <th>工时</th>
+                <th>金额</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $data.dailySummary}}
+            <tr>
+                <td>{{.Date}}</td>
+                <td>{{printf "%.1f" .Hours}}h</td>
+                <td>¥{{printf "%.0f" .Amount}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
 </div>
 {{end}}
 {{end}}

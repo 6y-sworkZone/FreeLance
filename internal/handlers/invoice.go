@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"image/color"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 	"github.com/freelance/workbench/internal/middleware"
 	"github.com/freelance/workbench/internal/models"
 	"github.com/freelance/workbench/internal/utils"
-	"github.com/jung-kurt/gofpdf"
+	"github.com/signintech/gopdf"
 )
 
 func ListInvoices(w http.ResponseWriter, r *http.Request) {
@@ -162,18 +163,21 @@ func InvoiceDetail(w http.ResponseWriter, r *http.Request) {
 	id := parseInt64(r.URL.Query().Get("id"))
 
 	var inv models.Invoice
-	var clientContact, clientEmail, clientPhone string
 	err := db.DB.QueryRow(`SELECT i.id, i.invoice_number, i.project_id, p.name as project_name, i.client_id, c.company_name,
-		c.contact_person, c.email, c.phone, i.issue_date, i.due_date, i.notes, i.status, i.subtotal, i.tax_rate, i.tax_amount, i.total, i.paid_amount
+		i.issue_date, i.due_date, i.notes, i.status, i.subtotal, i.tax_rate, i.tax_amount, i.total, i.paid_amount
 		FROM invoices i LEFT JOIN projects p ON i.project_id = p.id 
 		LEFT JOIN clients c ON i.client_id = c.id WHERE i.id = ?`, id).
 		Scan(&inv.ID, &inv.InvoiceNumber, &inv.ProjectID, &inv.ProjectName, &inv.ClientID, &inv.ClientName,
-			&clientContact, &clientEmail, &clientPhone, &inv.IssueDate, &inv.DueDate, &inv.Notes, &inv.Status,
+			&inv.IssueDate, &inv.DueDate, &inv.Notes, &inv.Status,
 			&inv.Subtotal, &inv.TaxRate, &inv.TaxAmount, &inv.Total, &inv.PaidAmount)
 	if err != nil {
 		http.Error(w, "发票不存在", http.StatusNotFound)
 		return
 	}
+
+	var clientContact, clientEmail, clientPhone string
+	db.DB.QueryRow("SELECT contact_person, email, phone FROM clients WHERE id = ?", inv.ClientID).
+		Scan(&clientContact, &clientEmail, &clientPhone)
 
 	itemRows, _ := db.DB.Query("SELECT id, description, quantity, unit_price, amount FROM invoice_items WHERE invoice_id = ?", id)
 	for itemRows.Next() {
@@ -264,14 +268,16 @@ func GenerateInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	id := parseInt64(r.URL.Query().Get("id"))
 
 	var inv models.Invoice
-	var clientContact, clientEmail, clientPhone string
 	db.DB.QueryRow(`SELECT i.id, i.invoice_number, i.project_id, p.name as project_name, i.client_id, c.company_name,
-		c.contact_person, c.email, c.phone, i.issue_date, i.due_date, i.notes, i.status, i.subtotal, i.tax_rate, i.tax_amount, i.total, i.paid_amount
+		i.issue_date, i.due_date, i.notes, i.status, i.subtotal, i.tax_rate, i.tax_amount, i.total, i.paid_amount
 		FROM invoices i LEFT JOIN projects p ON i.project_id = p.id 
 		LEFT JOIN clients c ON i.client_id = c.id WHERE i.id = ?`, id).
 		Scan(&inv.ID, &inv.InvoiceNumber, &inv.ProjectID, &inv.ProjectName, &inv.ClientID, &inv.ClientName,
-			&clientContact, &clientEmail, &clientPhone, &inv.IssueDate, &inv.DueDate, &inv.Notes, &inv.Status,
-			&inv.Subtotal, &inv.TaxRate, &inv.TaxAmount, &inv.Total, &inv.PaidAmount)
+			&inv.IssueDate, &inv.DueDate, &inv.Notes, &inv.Status, &inv.Subtotal, &inv.TaxRate, &inv.TaxAmount, &inv.Total, &inv.PaidAmount)
+
+	var clientContact, clientEmail, clientPhone string
+	db.DB.QueryRow("SELECT contact_person, email, phone FROM clients WHERE id = ?", inv.ClientID).
+		Scan(&clientContact, &clientEmail, &clientPhone)
 
 	itemRows, _ := db.DB.Query("SELECT id, description, quantity, unit_price, amount FROM invoice_items WHERE invoice_id = ?", id)
 	for itemRows.Next() {
@@ -305,132 +311,240 @@ func GenerateInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, pdfPath)
 }
 
-func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPhone string, outputPath string) error {
-	pdf := gofpdf.New("P", "mm", "A4", "")
+func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPhone, outputPath string) error {
+	pdf := gopdf.GoPdf{}
+	pdf.Start(gopdf.Config{PageSize: *gopdf.NewRect(210, 297)})
+
+	fontPath := "C:\\Windows\\Fonts\\simhei.ttf"
+	if err := pdf.AddTTFFont("simhei", fontPath); err != nil {
+		return fmt.Errorf("failed to load font: %w", err)
+	}
+
+	marginLeft := 15.0
+	marginRight := 15.0
+	pageWidth := 210.0
+	contentWidth := pageWidth - marginLeft - marginRight
+
 	pdf.AddPage()
 
-	pdf.SetFont("Arial", "B", 24)
-	pdf.CellFormat(0, 15, "INVOICE", "", 1, "C", false, 0, "")
-	pdf.Ln(5)
+	pdf.SetFont("simhei", "", 24)
+	pdf.SetTextColor(59, 130, 246)
+	title := "发  票"
+	titleWidth := 40.0
+	pdf.SetX((pageWidth - titleWidth) / 2)
+	pdf.Cell(nil, title)
+	pdf.Br(12)
 
 	pdf.SetDrawColor(59, 130, 246)
-	pdf.SetLineWidth(1)
-	pdf.Line(10, pdf.GetY(), 200, pdf.GetY())
-	pdf.Ln(10)
+	pdf.SetLineWidth(0.8)
+	pdf.Line(marginLeft, pdf.GetY(), pageWidth-marginRight, pdf.GetY())
+	pdf.Br(10)
 
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(40, 8, "Invoice Number:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "", 12)
-	pdf.CellFormat(60, 8, inv.InvoiceNumber, "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(35, 8, "Issue Date:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "", 12)
-	pdf.CellFormat(55, 8, inv.IssueDate, "", 1, "L", false, 0, "")
+	pdf.SetFont("simhei", "", 10)
+	pdf.SetTextColor(0, 0, 0)
 
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(40, 8, "Client:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "", 12)
-	pdf.CellFormat(60, 8, inv.ClientName, "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(35, 8, "Due Date:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "", 12)
-	pdf.CellFormat(55, 8, inv.DueDate, "", 1, "L", false, 0, "")
+	infoData := [][]string{
+		{"发票号：", inv.InvoiceNumber, "开票日期：", inv.IssueDate},
+		{"客户：", inv.ClientName, "到期日期：", inv.DueDate},
+		{"项目：", inv.ProjectName, "状态：", inv.Status},
+	}
 
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(40, 8, "Project:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "", 12)
-	pdf.CellFormat(60, 8, inv.ProjectName, "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(35, 8, "Status:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "", 12)
-	pdf.CellFormat(55, 8, inv.Status, "", 1, "L", false, 0, "")
+	colWidths := []float64{20, 65, 20, 65}
+	startX := marginLeft
 
+	for _, row := range infoData {
+		pdf.SetX(startX)
+		for i, cell := range row {
+			cellWidth := colWidths[i]
+			if i == 1 || i == 3 {
+				pdf.SetTextColor(80, 80, 80)
+			} else {
+				pdf.SetTextColor(0, 0, 0)
+			}
+			pdf.CellWithOption(&gopdf.Rect{W: cellWidth, H: 8}, cell, gopdf.CellOption{Align: gopdf.Left})
+		}
+		pdf.Br(10)
+	}
+
+	pdf.SetTextColor(0, 0, 0)
 	if clientContact != "" || clientEmail != "" || clientPhone != "" {
-		pdf.Ln(5)
-		pdf.SetFont("Arial", "B", 11)
-		pdf.CellFormat(40, 7, "Contact Info:", "", 1, "L", false, 0, "")
-		pdf.SetFont("Arial", "", 10)
+		pdf.SetFont("simhei", "", 9)
+		pdf.SetTextColor(100, 100, 100)
+		contactInfo := ""
 		if clientContact != "" {
-			pdf.CellFormat(40, 6, "Contact:", "", 0, "L", false, 0, "")
-			pdf.CellFormat(60, 6, clientContact, "", 1, "L", false, 0, "")
+			contactInfo += "联系人: " + clientContact + "  "
 		}
 		if clientEmail != "" {
-			pdf.CellFormat(40, 6, "Email:", "", 0, "L", false, 0, "")
-			pdf.CellFormat(60, 6, clientEmail, "", 1, "L", false, 0, "")
+			contactInfo += "邮箱: " + clientEmail + "  "
 		}
 		if clientPhone != "" {
-			pdf.CellFormat(40, 6, "Phone:", "", 0, "L", false, 0, "")
-			pdf.CellFormat(60, 6, clientPhone, "", 1, "L", false, 0, "")
+			contactInfo += "电话: " + clientPhone
 		}
+		pdf.SetX(marginLeft)
+		pdf.Cell(nil, contactInfo)
+		pdf.Br(10)
 	}
 
-	pdf.Ln(10)
-
-	pdf.SetFont("Arial", "B", 11)
-	pdf.SetFillColor(59, 130, 246)
+	pdf.SetFont("simhei", "", 10)
 	pdf.SetTextColor(255, 255, 255)
-	pdf.CellFormat(80, 10, "Description", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(25, 10, "Quantity", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(35, 10, "Unit Price", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(50, 10, "Amount", "1", 1, "C", true, 0, "")
+	headerY := pdf.GetY()
 
-	pdf.SetFont("Arial", "", 10)
-	pdf.SetTextColor(0, 0, 0)
-	for _, item := range inv.Items {
-		pdf.CellFormat(80, 9, item.Description, "1", 0, "L", false, 0, "")
-		pdf.CellFormat(25, 9, fmt.Sprintf("%.2f", item.Quantity), "1", 0, "C", false, 0, "")
-		pdf.CellFormat(35, 9, fmt.Sprintf("¥%.2f", item.UnitPrice), "1", 0, "R", false, 0, "")
-		pdf.CellFormat(50, 9, fmt.Sprintf("¥%.2f", item.Amount), "1", 1, "R", false, 0, "")
+	headerBg := color.RGBA{59, 130, 246, 255}
+	headers := []string{"描述", "数量", "单价", "金额"}
+	headerWidths := []float64{contentWidth * 0.5, contentWidth * 0.15, contentWidth * 0.175, contentWidth * 0.175}
+
+	pdf.SetX(marginLeft)
+	currentX := marginLeft
+	for i, header := range headers {
+		pdf.RectFromUpperLeftWithStyle(currentX, headerY, headerWidths[i], 10, "F", gopdf.RectOption{FillColor: headerBg})
+		pdf.SetX(currentX + 2)
+		pdf.SetY(headerY + 2)
+		if i == 0 {
+			pdf.CellWithOption(&gopdf.Rect{W: headerWidths[i] - 4, H: 6}, header, gopdf.CellOption{Align: gopdf.Left})
+		} else if i == 1 {
+			pdf.CellWithOption(&gopdf.Rect{W: headerWidths[i] - 4, H: 6}, header, gopdf.CellOption{Align: gopdf.Center})
+		} else {
+			pdf.CellWithOption(&gopdf.Rect{W: headerWidths[i] - 4, H: 6}, header, gopdf.CellOption{Align: gopdf.Right})
+		}
+		currentX += headerWidths[i]
+	}
+	pdf.SetY(headerY + 10)
+
+	pdf.SetDrawColor(200, 200, 200)
+	pdf.SetLineWidth(0.3)
+
+	rowHeight := 8.0
+	for idx, item := range inv.Items {
+		rowY := pdf.GetY()
+
+		if pdf.GetY() > 270 {
+			pdf.AddPage()
+			pdf.SetFont("simhei", "", 10)
+			rowY = pdf.GetY()
+		}
+
+		if idx%2 == 1 {
+			altBg := color.RGBA{249, 250, 251, 255}
+			pdf.RectFromUpperLeftWithStyle(marginLeft, rowY, contentWidth, rowHeight, "F", gopdf.RectOption{FillColor: altBg})
+		}
+
+		pdf.SetTextColor(0, 0, 0)
+		pdf.SetX(marginLeft + 2)
+		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[0] - 4, H: rowHeight}, item.Description, gopdf.CellOption{Align: gopdf.Left})
+
+		pdf.SetX(marginLeft + headerWidths[0])
+		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[1] - 4, H: rowHeight}, fmt.Sprintf("%.2f", item.Quantity), gopdf.CellOption{Align: gopdf.Center})
+
+		pdf.SetX(marginLeft + headerWidths[0] + headerWidths[1])
+		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[2] - 4, H: rowHeight}, fmt.Sprintf("¥%.2f", item.UnitPrice), gopdf.CellOption{Align: gopdf.Right})
+
+		pdf.SetX(marginLeft + headerWidths[0] + headerWidths[1] + headerWidths[2])
+		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[3] - 4, H: rowHeight}, fmt.Sprintf("¥%.2f", item.Amount), gopdf.CellOption{Align: gopdf.Right})
+
+		pdf.Line(marginLeft, rowY+rowHeight, marginLeft+contentWidth, rowY+rowHeight)
+		pdf.SetY(rowY + rowHeight)
 	}
 
-	pdf.Ln(5)
-	pdf.SetFont("Arial", "", 11)
-	pdf.CellFormat(140, 8, "Subtotal:", "", 0, "R", false, 0, "")
-	pdf.CellFormat(50, 8, fmt.Sprintf("¥%.2f", inv.Subtotal), "", 1, "R", false, 0, "")
+	pdf.Br(8)
 
-	pdf.CellFormat(140, 8, fmt.Sprintf("Tax (%.1f%%):", inv.TaxRate), "", 0, "R", false, 0, "")
-	pdf.CellFormat(50, 8, fmt.Sprintf("¥%.2f", inv.TaxAmount), "", 1, "R", false, 0, "")
-
-	pdf.SetFont("Arial", "B", 14)
-	pdf.CellFormat(140, 10, "Total:", "", 0, "R", false, 0, "")
-	pdf.CellFormat(50, 10, fmt.Sprintf("¥%.2f", inv.Total), "", 1, "R", false, 0, "")
-
-	pdf.SetFont("Arial", "", 11)
-	pdf.CellFormat(140, 8, "Paid:", "", 0, "R", false, 0, "")
-	pdf.CellFormat(50, 8, fmt.Sprintf("¥%.2f", inv.PaidAmount), "", 1, "R", false, 0, "")
-
-	pdf.SetTextColor(239, 68, 68)
-	pdf.CellFormat(140, 8, "Unpaid:", "", 0, "R", false, 0, "")
-	pdf.CellFormat(50, 8, fmt.Sprintf("¥%.2f", inv.Total-inv.PaidAmount), "", 1, "R", false, 0, "")
+	pdf.SetFont("simhei", "", 10)
 	pdf.SetTextColor(0, 0, 0)
 
-	if len(inv.Payments) > 0 {
-		pdf.Ln(10)
-		pdf.SetFont("Arial", "B", 12)
-		pdf.CellFormat(0, 10, "Payment History", "", 1, "L", false, 0, "")
+	summaryData := [][]string{
+		{"小计：", fmt.Sprintf("¥%.2f", inv.Subtotal)},
+		{fmt.Sprintf("税额 (%.1f%%)：", inv.TaxRate), fmt.Sprintf("¥%.2f", inv.TaxAmount)},
+		{"总计：", fmt.Sprintf("¥%.2f", inv.Total)},
+		{"已收：", fmt.Sprintf("¥%.2f", inv.PaidAmount)},
+		{"未收：", fmt.Sprintf("¥%.2f", inv.Total-inv.PaidAmount)},
+	}
 
-		pdf.SetFont("Arial", "B", 10)
-		pdf.SetFillColor(245, 245, 245)
-		pdf.CellFormat(60, 8, "Date", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(60, 8, "Method", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(70, 8, "Amount", "1", 1, "C", true, 0, "")
+	labelWidth := 40.0
+	valueWidth := 40.0
+	rightStartX := pageWidth - marginRight - labelWidth - valueWidth
 
-		pdf.SetFont("Arial", "", 10)
-		for _, p := range inv.Payments {
-			pdf.CellFormat(60, 8, p.PaymentDate, "1", 0, "C", false, 0, "")
-			pdf.CellFormat(60, 8, p.Method, "1", 0, "C", false, 0, "")
-			pdf.CellFormat(70, 8, fmt.Sprintf("¥%.2f", p.Amount), "1", 1, "R", false, 0, "")
+	for i, row := range summaryData {
+		rowY := pdf.GetY()
+		if i == 2 {
+			pdf.SetFont("simhei", "B", 12)
+		} else {
+			pdf.SetFont("simhei", "", 10)
 		}
+		if i == 4 {
+			pdf.SetTextColor(239, 68, 68)
+		} else {
+			pdf.SetTextColor(0, 0, 0)
+		}
+		pdf.SetX(rightStartX)
+		pdf.CellWithOption(&gopdf.Rect{W: labelWidth, H: 8}, row[0], gopdf.CellOption{Align: gopdf.Right})
+		pdf.SetX(rightStartX + labelWidth)
+		pdf.CellWithOption(&gopdf.Rect{W: valueWidth, H: 8}, row[1], gopdf.CellOption{Align: gopdf.Right})
+		pdf.Br(9)
 	}
 
 	if inv.Notes != "" {
-		pdf.Ln(10)
-		pdf.SetFont("Arial", "B", 11)
-		pdf.CellFormat(0, 8, "Notes:", "", 1, "L", false, 0, "")
-		pdf.SetFont("Arial", "", 10)
-		pdf.SetFillColor(249, 250, 251)
-		pdf.MultiCell(0, 7, inv.Notes, "1", "L", true)
+		pdf.Br(5)
+		pdf.SetFont("simhei", "", 9)
+		pdf.SetTextColor(100, 100, 100)
+		pdf.SetX(marginLeft)
+		notesBg := color.RGBA{249, 250, 251, 255}
+		notesY := pdf.GetY()
+		pdf.RectFromUpperLeftWithStyle(marginLeft, notesY, contentWidth, 20, "F", gopdf.RectOption{FillColor: notesBg})
+		pdf.SetY(notesY + 2)
+		pdf.Cell(nil, "备注：")
+		pdf.Br(6)
+		pdf.SetX(marginLeft + 2)
+		pdf.Cell(nil, inv.Notes)
+		pdf.SetY(notesY + 22)
 	}
 
-	return pdf.OutputFileAndClose(outputPath)
+	if len(inv.Payments) > 0 {
+		pdf.Br(8)
+		pdf.SetFont("simhei", "", 11)
+		pdf.SetTextColor(59, 130, 246)
+		pdf.SetX(marginLeft)
+		pdf.Cell(nil, "收款记录")
+		pdf.Br(8)
+
+		pdf.SetDrawColor(200, 200, 200)
+		pdf.SetLineWidth(0.3)
+
+		payHeaderY := pdf.GetY()
+		payHeaderBg := color.RGBA{245, 245, 245, 255}
+		payHeaders := []string{"日期", "方式", "金额"}
+		payWidths := []float64{contentWidth * 0.4, contentWidth * 0.3, contentWidth * 0.3}
+
+		pdf.SetFont("simhei", "", 9)
+		pdf.SetTextColor(0, 0, 0)
+		pdf.SetX(marginLeft)
+		curX := marginLeft
+		for i, h := range payHeaders {
+			pdf.RectFromUpperLeftWithStyle(curX, payHeaderY, payWidths[i], 7, "F", gopdf.RectOption{FillColor: payHeaderBg})
+			pdf.SetX(curX + 2)
+			pdf.SetY(payHeaderY + 1)
+			if i == 0 {
+				pdf.CellWithOption(&gopdf.Rect{W: payWidths[i] - 4, H: 5}, h, gopdf.CellOption{Align: gopdf.Left})
+			} else if i == 1 {
+				pdf.CellWithOption(&gopdf.Rect{W: payWidths[i] - 4, H: 5}, h, gopdf.CellOption{Align: gopdf.Center})
+			} else {
+				pdf.CellWithOption(&gopdf.Rect{W: payWidths[i] - 4, H: 5}, h, gopdf.CellOption{Align: gopdf.Right})
+			}
+			curX += payWidths[i]
+		}
+		pdf.SetY(payHeaderY + 7)
+
+		pdf.SetFont("simhei", "", 9)
+		for _, p := range inv.Payments {
+			pRowY := pdf.GetY()
+			pdf.SetX(marginLeft + 2)
+			pdf.CellWithOption(&gopdf.Rect{W: payWidths[0] - 4, H: 7}, p.PaymentDate, gopdf.CellOption{Align: gopdf.Left})
+			pdf.SetX(marginLeft + payWidths[0])
+			pdf.CellWithOption(&gopdf.Rect{W: payWidths[1] - 4, H: 7}, p.Method, gopdf.CellOption{Align: gopdf.Center})
+			pdf.SetX(marginLeft + payWidths[0] + payWidths[1])
+			pdf.CellWithOption(&gopdf.Rect{W: payWidths[2] - 4, H: 7}, fmt.Sprintf("¥%.2f", p.Amount), gopdf.CellOption{Align: gopdf.Right})
+			pdf.Line(marginLeft, pRowY+7, marginLeft+contentWidth, pRowY+7)
+			pdf.SetY(pRowY + 7)
+		}
+	}
+
+	return pdf.WritePdf(outputPath)
 }

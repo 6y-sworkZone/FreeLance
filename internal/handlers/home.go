@@ -22,21 +22,6 @@ func Home(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r)
 	now := time.Now()
 
-	utils.CheckAndCreateNotifications(db.DB, user.ID)
-
-	var notifications []models.Notification
-	notifRows, _ := db.DB.Query(`SELECT id, type, title, content, related_type, related_id, is_read, due_date, created_at
-		FROM notifications WHERE user_id = ? AND is_read = 0 ORDER BY created_at DESC LIMIT 10`, user.ID)
-	for notifRows.Next() {
-		var n models.Notification
-		notifRows.Scan(&n.ID, &n.Type, &n.Title, &n.Content, &n.RelatedType, &n.RelatedID, &n.IsRead, &n.DueDate, &n.CreatedAt)
-		notifications = append(notifications, n)
-	}
-	notifRows.Close()
-
-	var unreadCount int
-	db.DB.QueryRow("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0", user.ID).Scan(&unreadCount)
-
 	var activeTimer *models.TimeEntry
 	timerRow := db.DB.QueryRow(`SELECT te.id, te.project_id, p.name, te.description, te.start_time 
 		FROM time_entries te LEFT JOIN projects p ON te.project_id = p.id 
@@ -239,8 +224,6 @@ func Home(w http.ResponseWriter, r *http.Request) {
 			"pendingClients":    pendingClients,
 			"activities":        activities,
 			"projects":          projects,
-			"notifications":     notifications,
-			"unreadCount":       unreadCount,
 		},
 		Active: "home",
 	})
@@ -254,16 +237,4 @@ func sortActivities(activities []activity) {
 			}
 		}
 	}
-}
-
-func MarkNotificationRead(w http.ResponseWriter, r *http.Request) {
-	id := parseInt64(r.URL.Query().Get("id"))
-	db.DB.Exec("UPDATE notifications SET is_read = 1 WHERE id = ?", id)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
-}
-
-func MarkAllNotificationsRead(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r)
-	db.DB.Exec("UPDATE notifications SET is_read = 1 WHERE user_id = ?", user.ID)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

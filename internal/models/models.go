@@ -204,16 +204,3 @@ type ActivityItem struct {
 	Detail    string    `json:"detail"`
 	Time      time.Time `json:"time"`
 }
-
-type Notification struct {
-	ID          int64     `json:"id"`
-	UserID      int64     `json:"user_id"`
-	Type        string    `json:"type"`
-	Title       string    `json:"title"`
-	Content     string    `json:"content"`
-	RelatedType string    `json:"related_type"`
-	RelatedID   int64     `json:"related_id"`
-	IsRead      bool      `json:"is_read"`
-	DueDate     string    `json:"due_date"`
-	CreatedAt   time.Time `json:"created_at"`
-}

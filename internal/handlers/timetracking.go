@@ -58,10 +58,6 @@ func TimeTracking(w http.ResponseWriter, r *http.Request) {
 
 	dateFilter := r.URL.Query().Get("date")
 	projectFilter := r.URL.Query().Get("project_id")
-	periodFilter := r.URL.Query().Get("period")
-	if periodFilter == "" {
-		periodFilter = "week"
-	}
 
 	query := `SELECT te.id, te.project_id, p.name, c.company_name, te.description, te.start_time, te.end_time, te.duration_minutes, te.rate
 		FROM time_entries te LEFT JOIN projects p ON te.project_id = p.id 
@@ -106,114 +102,32 @@ func TimeTracking(w http.ResponseWriter, r *http.Request) {
 	}
 	projRows.Close()
 
-	type summaryItem struct {
-		Label      string
+	type summary struct {
+		Date       string
 		Hours      float64
 		Amount     float64
 	}
 
-	type projectSummary struct {
-		ProjectID   int64
-		ProjectName string
-		Hours       float64
-		Amount      float64
-	}
-
-	var periodSummary []summaryItem
-	var projectSummaryList []projectSummary
-	var totalHours, totalAmount float64
-	var summaryLabel string
-
-	now := time.Now()
-	var startDate time.Time
-
-	switch periodFilter {
-	case "day":
-		startDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		summaryLabel = "今日"
-	case "week":
-		startDate = utils.StartOfWeek(now)
-		summaryLabel = "本周"
-	case "month":
-		startDate = utils.StartOfMonth(now)
-		summaryLabel = "本月"
-	default:
-		startDate = utils.StartOfWeek(now)
-		summaryLabel = "本周"
-	}
-
+	var dailySummary []summary
 	if dateFilter == "" {
-		var groupBy string
-		switch periodFilter {
-		case "day":
-			groupBy = "DATE(start_time)"
-		case "week":
-			groupBy = "DATE(start_time)"
-		case "month":
-			groupBy = "strftime('%W', start_time)"
-		default:
-			groupBy = "DATE(start_time)"
-		}
-
-		var dateFormat string
-		if periodFilter == "month" {
-			dateFormat = "第 %W 周"
-		} else {
-			dateFormat = "%Y-%m-%d"
-		}
-
-		sumRows, _ := db.DB.Query(`SELECT strftime(?, start_time) as label, SUM(duration_minutes) as mins, SUM(duration_minutes / 60.0 * rate) as amount
-			FROM time_entries WHERE end_time IS NOT NULL AND start_time >= ?
-			GROUP BY `+groupBy+` ORDER BY label DESC`, dateFormat, startDate)
+		startOfWeek := utils.StartOfWeek(time.Now())
+		sumRows, _ := db.DB.Query(`SELECT DATE(start_time) as date, SUM(duration_minutes) as mins, SUM(duration_minutes / 60.0 * rate) as amount
+			FROM time_entries WHERE end_time IS NOT NULL AND DATE(start_time) >= ?
+			GROUP BY DATE(start_time) ORDER BY date DESC`, startOfWeek.Format("2006-01-02"))
 		for sumRows.Next() {
-			var s summaryItem
+			var s summary
 			var mins int
-			sumRows.Scan(&s.Label, &mins, &s.Amount)
+			sumRows.Scan(&s.Date, &mins, &s.Amount)
 			s.Hours = float64(mins) / 60
-			periodSummary = append(periodSummary, s)
-			totalHours += s.Hours
-			totalAmount += s.Amount
+			dailySummary = append(dailySummary, s)
 		}
 		sumRows.Close()
-
-		projSumRows, _ := db.DB.Query(`SELECT p.id, p.name, SUM(te.duration_minutes) as mins, SUM(te.duration_minutes / 60.0 * te.rate) as amount
-			FROM time_entries te LEFT JOIN projects p ON te.project_id = p.id 
-			WHERE te.end_time IS NOT NULL AND te.start_time >= ?
-			GROUP BY p.id, p.name ORDER BY amount DESC`, startDate)
-		for projSumRows.Next() {
-			var ps projectSummary
-			var mins int
-			projSumRows.Scan(&ps.ProjectID, &ps.ProjectName, &mins, &ps.Amount)
-			ps.Hours = float64(mins) / 60
-			projectSummaryList = append(projectSummaryList, ps)
-		}
-		projSumRows.Close()
-	}
-
-	avgRate := 0.0
-	if totalHours > 0 {
-		avgRate = totalAmount / totalHours
 	}
 
 	renderTemplate(w, "time_tracking.html", TemplateData{
 		Title:  "工时追踪",
 		User:   user,
-		Data:   map[string]interface{}{
-			"entries":            entries,
-			"activeTimer":        activeTimer,
-			"projects":           projects,
-			"dateFilter":         dateFilter,
-			"projectFilter":      projectFilter,
-			"periodFilter":       periodFilter,
-			"periodSummary":      periodSummary,
-			"projectSummaryList": projectSummaryList,
-			"summaryLabel":       summaryLabel,
-			"totalHours":         totalHours,
-			"totalAmount":        totalAmount,
-			"avgRate":            avgRate,
-			"defaultRate":        user.HourlyRate,
-			"today":              now.Format("2006-01-02"),
-		},
+		Data:   map[string]interface{}{"entries": entries, "activeTimer": activeTimer, "projects": projects, "dateFilter": dateFilter, "projectFilter": projectFilter, "dailySummary": dailySummary, "defaultRate": user.HourlyRate},
 		Active: "time",
 	})
 }
