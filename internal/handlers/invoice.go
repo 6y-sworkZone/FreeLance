@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"image/color"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -313,7 +312,7 @@ func GenerateInvoicePDF(w http.ResponseWriter, r *http.Request) {
 
 func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPhone, outputPath string) error {
 	pdf := gopdf.GoPdf{}
-	pdf.Start(gopdf.Config{PageSize: *gopdf.NewRect(210, 297)})
+	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4, Unit: gopdf.UnitMM})
 
 	fontPath := "C:\\Windows\\Fonts\\simhei.ttf"
 	if err := pdf.AddTTFFont("simhei", fontPath); err != nil {
@@ -335,7 +334,7 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 	pdf.Cell(nil, title)
 	pdf.Br(12)
 
-	pdf.SetDrawColor(59, 130, 246)
+	pdf.SetStrokeColor(59, 130, 246)
 	pdf.SetLineWidth(0.8)
 	pdf.Line(marginLeft, pdf.GetY(), pageWidth-marginRight, pdf.GetY())
 	pdf.Br(10)
@@ -350,10 +349,9 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 	}
 
 	colWidths := []float64{20, 65, 20, 65}
-	startX := marginLeft
 
 	for _, row := range infoData {
-		pdf.SetX(startX)
+		pdf.SetX(marginLeft)
 		for i, cell := range row {
 			cellWidth := colWidths[i]
 			if i == 1 || i == 3 {
@@ -386,17 +384,16 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 	}
 
 	pdf.SetFont("simhei", "", 10)
-	pdf.SetTextColor(255, 255, 255)
 	headerY := pdf.GetY()
 
-	headerBg := color.RGBA{59, 130, 246, 255}
 	headers := []string{"描述", "数量", "单价", "金额"}
 	headerWidths := []float64{contentWidth * 0.5, contentWidth * 0.15, contentWidth * 0.175, contentWidth * 0.175}
 
-	pdf.SetX(marginLeft)
+	pdf.SetFillColor(59, 130, 246)
+	pdf.SetTextColor(255, 255, 255)
 	currentX := marginLeft
 	for i, header := range headers {
-		pdf.RectFromUpperLeftWithStyle(currentX, headerY, headerWidths[i], 10, "F", gopdf.RectOption{FillColor: headerBg})
+		pdf.RectFromUpperLeftWithStyle(currentX, headerY, headerWidths[i], 10, "F")
 		pdf.SetX(currentX + 2)
 		pdf.SetY(headerY + 2)
 		if i == 0 {
@@ -410,7 +407,7 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 	}
 	pdf.SetY(headerY + 10)
 
-	pdf.SetDrawColor(200, 200, 200)
+	pdf.SetStrokeColor(200, 200, 200)
 	pdf.SetLineWidth(0.3)
 
 	rowHeight := 8.0
@@ -424,8 +421,8 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 		}
 
 		if idx%2 == 1 {
-			altBg := color.RGBA{249, 250, 251, 255}
-			pdf.RectFromUpperLeftWithStyle(marginLeft, rowY, contentWidth, rowHeight, "F", gopdf.RectOption{FillColor: altBg})
+			pdf.SetFillColor(249, 250, 251)
+			pdf.RectFromUpperLeftWithStyle(marginLeft, rowY, contentWidth, rowHeight, "F")
 		}
 
 		pdf.SetTextColor(0, 0, 0)
@@ -436,10 +433,10 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[1] - 4, H: rowHeight}, fmt.Sprintf("%.2f", item.Quantity), gopdf.CellOption{Align: gopdf.Center})
 
 		pdf.SetX(marginLeft + headerWidths[0] + headerWidths[1])
-		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[2] - 4, H: rowHeight}, fmt.Sprintf("¥%.2f", item.UnitPrice), gopdf.CellOption{Align: gopdf.Right})
+		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[2] - 4, H: rowHeight}, fmt.Sprintf("%.2f", item.UnitPrice), gopdf.CellOption{Align: gopdf.Right})
 
 		pdf.SetX(marginLeft + headerWidths[0] + headerWidths[1] + headerWidths[2])
-		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[3] - 4, H: rowHeight}, fmt.Sprintf("¥%.2f", item.Amount), gopdf.CellOption{Align: gopdf.Right})
+		pdf.CellWithOption(&gopdf.Rect{W: headerWidths[3] - 4, H: rowHeight}, fmt.Sprintf("%.2f", item.Amount), gopdf.CellOption{Align: gopdf.Right})
 
 		pdf.Line(marginLeft, rowY+rowHeight, marginLeft+contentWidth, rowY+rowHeight)
 		pdf.SetY(rowY + rowHeight)
@@ -463,9 +460,8 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 	rightStartX := pageWidth - marginRight - labelWidth - valueWidth
 
 	for i, row := range summaryData {
-		rowY := pdf.GetY()
 		if i == 2 {
-			pdf.SetFont("simhei", "B", 12)
+			pdf.SetFont("simhei", "", 12)
 		} else {
 			pdf.SetFont("simhei", "", 10)
 		}
@@ -486,9 +482,9 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 		pdf.SetFont("simhei", "", 9)
 		pdf.SetTextColor(100, 100, 100)
 		pdf.SetX(marginLeft)
-		notesBg := color.RGBA{249, 250, 251, 255}
 		notesY := pdf.GetY()
-		pdf.RectFromUpperLeftWithStyle(marginLeft, notesY, contentWidth, 20, "F", gopdf.RectOption{FillColor: notesBg})
+		pdf.SetFillColor(249, 250, 251)
+		pdf.RectFromUpperLeftWithStyle(marginLeft, notesY, contentWidth, 20, "F")
 		pdf.SetY(notesY + 2)
 		pdf.Cell(nil, "备注：")
 		pdf.Br(6)
@@ -505,20 +501,19 @@ func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPh
 		pdf.Cell(nil, "收款记录")
 		pdf.Br(8)
 
-		pdf.SetDrawColor(200, 200, 200)
+		pdf.SetStrokeColor(200, 200, 200)
 		pdf.SetLineWidth(0.3)
 
 		payHeaderY := pdf.GetY()
-		payHeaderBg := color.RGBA{245, 245, 245, 255}
 		payHeaders := []string{"日期", "方式", "金额"}
 		payWidths := []float64{contentWidth * 0.4, contentWidth * 0.3, contentWidth * 0.3}
 
+		pdf.SetFillColor(245, 245, 245)
 		pdf.SetFont("simhei", "", 9)
 		pdf.SetTextColor(0, 0, 0)
-		pdf.SetX(marginLeft)
 		curX := marginLeft
 		for i, h := range payHeaders {
-			pdf.RectFromUpperLeftWithStyle(curX, payHeaderY, payWidths[i], 7, "F", gopdf.RectOption{FillColor: payHeaderBg})
+			pdf.RectFromUpperLeftWithStyle(curX, payHeaderY, payWidths[i], 7, "F")
 			pdf.SetX(curX + 2)
 			pdf.SetY(payHeaderY + 1)
 			if i == 0 {
