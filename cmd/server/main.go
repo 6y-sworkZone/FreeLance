@@ -27,6 +27,8 @@ func main() {
 	mux.HandleFunc("/logout", handlers.HandleLogout)
 
 	mux.HandleFunc("/", middleware.Auth(handlers.Home))
+	mux.HandleFunc("/notifications/read", middleware.Auth(handlers.MarkNotificationRead))
+	mux.HandleFunc("/notifications/read-all", middleware.Auth(handlers.MarkAllNotificationsRead))
 
 	mux.HandleFunc("/clients", middleware.Auth(handlers.ListClients))
 	mux.HandleFunc("/clients/new", middleware.Auth(handlers.NewClientForm))

@@ -167,6 +167,36 @@
                 </div>
             </div>
 
+            {{if $data.notifications}}
+            <div class="card notification-card">
+                <div class="card-header">
+                    <h3>逾期提醒 <span class="badge badge-danger">{{$data.unreadCount}}</span></h3>
+                    <a href="/notifications/read-all" class="btn btn-sm btn-ghost" onclick="return confirm('确定全部标记为已读?')">全部已读</a>
+                </div>
+                <div class="notification-list">
+                    {{range $data.notifications}}
+                    <div class="notification-item {{.Type}}">
+                        <div class="notification-icon">
+                            {{if eq .Type "invoice"}}
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            {{else}}
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                            {{end}}
+                        </div>
+                        <div class="notification-content">
+                            <div class="notification-title">{{.Title}}</div>
+                            <div class="notification-desc">{{.Content}}</div>
+                            <div class="notification-time">{{formatDateTime .CreatedAt}}</div>
+                        </div>
+                        <a href="/notifications/read?id={{.ID}}" class="btn btn-sm btn-ghost" title="标记已读">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        </a>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+
             <div class="card">
                 <div class="card-header">
                     <h3>近期动态</h3>

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	"github.com/freelance/workbench/internal/middleware"
 	"github.com/freelance/workbench/internal/models"
 	"github.com/freelance/workbench/internal/utils"
+	"github.com/jung-kurt/gofpdf"
 )
 
 func ListInvoices(w http.ResponseWriter, r *http.Request) {
@@ -162,24 +162,18 @@ func InvoiceDetail(w http.ResponseWriter, r *http.Request) {
 	id := parseInt64(r.URL.Query().Get("id"))
 
 	var inv models.Invoice
+	var clientContact, clientEmail, clientPhone string
 	err := db.DB.QueryRow(`SELECT i.id, i.invoice_number, i.project_id, p.name as project_name, i.client_id, c.company_name,
 		c.contact_person, c.email, c.phone, i.issue_date, i.due_date, i.notes, i.status, i.subtotal, i.tax_rate, i.tax_amount, i.total, i.paid_amount
 		FROM invoices i LEFT JOIN projects p ON i.project_id = p.id 
 		LEFT JOIN clients c ON i.client_id = c.id WHERE i.id = ?`, id).
 		Scan(&inv.ID, &inv.InvoiceNumber, &inv.ProjectID, &inv.ProjectName, &inv.ClientID, &inv.ClientName,
-			&inv.ClientName, &inv.ClientName, &inv.ClientName, &inv.IssueDate, &inv.DueDate, &inv.Notes, &inv.Status,
+			&clientContact, &clientEmail, &clientPhone, &inv.IssueDate, &inv.DueDate, &inv.Notes, &inv.Status,
 			&inv.Subtotal, &inv.TaxRate, &inv.TaxAmount, &inv.Total, &inv.PaidAmount)
 	if err != nil {
 		http.Error(w, "发票不存在", http.StatusNotFound)
 		return
 	}
-
-	var clientContact, clientEmail, clientPhone string
-	db.DB.QueryRow("SELECT contact_person, email, phone FROM clients WHERE id = ?", inv.ClientID).
-		Scan(&clientContact, &clientEmail, &clientPhone)
-
-	inv.ClientName = inv.ClientName
-	_ = clientContact
 
 	itemRows, _ := db.DB.Query("SELECT id, description, quantity, unit_price, amount FROM invoice_items WHERE invoice_id = ?", id)
 	for itemRows.Next() {
@@ -270,12 +264,14 @@ func GenerateInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	id := parseInt64(r.URL.Query().Get("id"))
 
 	var inv models.Invoice
+	var clientContact, clientEmail, clientPhone string
 	db.DB.QueryRow(`SELECT i.id, i.invoice_number, i.project_id, p.name as project_name, i.client_id, c.company_name,
-		i.issue_date, i.due_date, i.notes, i.status, i.subtotal, i.tax_rate, i.tax_amount, i.total, i.paid_amount
+		c.contact_person, c.email, c.phone, i.issue_date, i.due_date, i.notes, i.status, i.subtotal, i.tax_rate, i.tax_amount, i.total, i.paid_amount
 		FROM invoices i LEFT JOIN projects p ON i.project_id = p.id 
 		LEFT JOIN clients c ON i.client_id = c.id WHERE i.id = ?`, id).
 		Scan(&inv.ID, &inv.InvoiceNumber, &inv.ProjectID, &inv.ProjectName, &inv.ClientID, &inv.ClientName,
-			&inv.IssueDate, &inv.DueDate, &inv.Notes, &inv.Status, &inv.Subtotal, &inv.TaxRate, &inv.TaxAmount, &inv.Total, &inv.PaidAmount)
+			&clientContact, &clientEmail, &clientPhone, &inv.IssueDate, &inv.DueDate, &inv.Notes, &inv.Status,
+			&inv.Subtotal, &inv.TaxRate, &inv.TaxAmount, &inv.Total, &inv.PaidAmount)
 
 	itemRows, _ := db.DB.Query("SELECT id, description, quantity, unit_price, amount FROM invoice_items WHERE invoice_id = ?", id)
 	for itemRows.Next() {
@@ -293,14 +289,12 @@ func GenerateInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	}
 	payRows.Close()
 
-	html := generateInvoiceHTML(inv)
-
 	pdfDir := config.UploadDir + "/pdfs"
 	os.MkdirAll(pdfDir, 0755)
 
 	pdfPath := filepath.Join(pdfDir, fmt.Sprintf("invoice_%s.pdf", inv.InvoiceNumber))
 
-	err := htmlToPDF(html, pdfPath)
+	err := generateInvoicePDF(inv, clientContact, clientEmail, clientPhone, pdfPath)
 	if err != nil {
 		http.Error(w, "PDF generation failed: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -311,90 +305,132 @@ func GenerateInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, pdfPath)
 }
 
-func generateInvoiceHTML(inv models.Invoice) string {
-	itemsHTML := ""
-	for _, item := range inv.Items {
-		itemsHTML += fmt.Sprintf(`
-			<tr>
-				<td style="padding: 10px; border: 1px solid #ddd;">%s</td>
-				<td style="padding: 10px; border: 1px solid #ddd; text-align: center;">%.2f</td>
-				<td style="padding: 10px; border: 1px solid #ddd; text-align: right;">¥%.2f</td>
-				<td style="padding: 10px; border: 1px solid #ddd; text-align: right;">¥%.2f</td>
-			</tr>`, item.Description, item.Quantity, item.UnitPrice, item.Amount)
-	}
+func generateInvoicePDF(inv models.Invoice, clientContact, clientEmail, clientPhone string, outputPath string) error {
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
 
-	paymentsHTML := ""
-	if len(inv.Payments) > 0 {
-		paymentsHTML = `<h3 style="margin-top: 30px;">收款记录</h3><table style="width: 100%; border-collapse: collapse;">
-			<tr style="background: #f5f5f5;"><th style="padding: 8px; border: 1px solid #ddd;">日期</th>
-			<th style="padding: 8px; border: 1px solid #ddd;">方式</th>
-			<th style="padding: 8px; border: 1px solid #ddd;">金额</th></tr>`
-		for _, p := range inv.Payments {
-			paymentsHTML += fmt.Sprintf(`<tr><td style="padding: 8px; border: 1px solid #ddd;">%s</td>
-				<td style="padding: 8px; border: 1px solid #ddd;">%s</td>
-				<td style="padding: 8px; border: 1px solid #ddd;">¥%.2f</td></tr>`, p.PaymentDate, p.Method, p.Amount)
+	pdf.SetFont("Arial", "B", 24)
+	pdf.CellFormat(0, 15, "INVOICE", "", 1, "C", false, 0, "")
+	pdf.Ln(5)
+
+	pdf.SetDrawColor(59, 130, 246)
+	pdf.SetLineWidth(1)
+	pdf.Line(10, pdf.GetY(), 200, pdf.GetY())
+	pdf.Ln(10)
+
+	pdf.SetFont("Arial", "B", 12)
+	pdf.CellFormat(40, 8, "Invoice Number:", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 12)
+	pdf.CellFormat(60, 8, inv.InvoiceNumber, "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "B", 12)
+	pdf.CellFormat(35, 8, "Issue Date:", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 12)
+	pdf.CellFormat(55, 8, inv.IssueDate, "", 1, "L", false, 0, "")
+
+	pdf.SetFont("Arial", "B", 12)
+	pdf.CellFormat(40, 8, "Client:", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 12)
+	pdf.CellFormat(60, 8, inv.ClientName, "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "B", 12)
+	pdf.CellFormat(35, 8, "Due Date:", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 12)
+	pdf.CellFormat(55, 8, inv.DueDate, "", 1, "L", false, 0, "")
+
+	pdf.SetFont("Arial", "B", 12)
+	pdf.CellFormat(40, 8, "Project:", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 12)
+	pdf.CellFormat(60, 8, inv.ProjectName, "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "B", 12)
+	pdf.CellFormat(35, 8, "Status:", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 12)
+	pdf.CellFormat(55, 8, inv.Status, "", 1, "L", false, 0, "")
+
+	if clientContact != "" || clientEmail != "" || clientPhone != "" {
+		pdf.Ln(5)
+		pdf.SetFont("Arial", "B", 11)
+		pdf.CellFormat(40, 7, "Contact Info:", "", 1, "L", false, 0, "")
+		pdf.SetFont("Arial", "", 10)
+		if clientContact != "" {
+			pdf.CellFormat(40, 6, "Contact:", "", 0, "L", false, 0, "")
+			pdf.CellFormat(60, 6, clientContact, "", 1, "L", false, 0, "")
 		}
-		paymentsHTML += "</table>"
+		if clientEmail != "" {
+			pdf.CellFormat(40, 6, "Email:", "", 0, "L", false, 0, "")
+			pdf.CellFormat(60, 6, clientEmail, "", 1, "L", false, 0, "")
+		}
+		if clientPhone != "" {
+			pdf.CellFormat(40, 6, "Phone:", "", 0, "L", false, 0, "")
+			pdf.CellFormat(60, 6, clientPhone, "", 1, "L", false, 0, "")
+		}
 	}
 
-	html := fmt.Sprintf(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family: 'Microsoft YaHei', Arial, sans-serif; padding: 40px;">
-		<div style="max-width: 800px; margin: 0 auto;">
-			<h1 style="text-align: center; border-bottom: 3px solid #3b82f6; padding-bottom: 10px;">发票</h1>
-			<div style="margin-top: 20px;">
-				<table style="width: 100%%; margin-bottom: 20px;">
-					<tr><td style="width: 50%%;"><strong>发票号：</strong>%s</td><td><strong>开票日期：</strong>%s</td></tr>
-					<tr><td><strong>客户：</strong>%s</td><td><strong>到期日期：</strong>%s</td></tr>
-					<tr><td><strong>项目：</strong>%s</td><td><strong>状态：</strong>%s</td></tr>
-				</table>
-			</div>
-			<table style="width: 100%%; border-collapse: collapse; margin-top: 20px;">
-				<tr style="background: #3b82f6; color: white;">
-					<th style="padding: 10px; border: 1px solid #ddd; text-align: left;">描述</th>
-					<th style="padding: 10px; border: 1px solid #ddd; text-align: center;">数量</th>
-					<th style="padding: 10px; border: 1px solid #ddd; text-align: right;">单价</th>
-					<th style="padding: 10px; border: 1px solid #ddd; text-align: right;">金额</th>
-				</tr>
-				%s
-			</table>
-			<div style="margin-top: 20px; text-align: right;">
-				<table style="margin-left: auto;">
-					<tr><td style="padding: 8px;">小计：</td><td style="padding: 8px;">¥%.2f</td></tr>
-					<tr><td style="padding: 8px;">税率 (%.1f%%)：</td><td style="padding: 8px;">¥%.2f</td></tr>
-					<tr style="font-weight: bold; font-size: 18px;"><td style="padding: 8px;">总计：</td><td style="padding: 8px;">¥%.2f</td></tr>
-					<tr><td style="padding: 8px;">已收：</td><td style="padding: 8px;">¥%.2f</td></tr>
-					<tr style="color: #ef4444;"><td style="padding: 8px;">未收：</td><td style="padding: 8px;">¥%.2f</td></tr>
-				</table>
-			</div>
-			%s
-			%s
-		</div></body></html>`,
-		inv.InvoiceNumber, inv.IssueDate, inv.ClientName, inv.DueDate, inv.ProjectName, inv.Status,
-		itemsHTML, inv.Subtotal, inv.TaxRate, inv.TaxAmount, inv.Total, inv.PaidAmount, inv.Total-inv.PaidAmount,
-		paymentsHTML,
-		func() string {
-			if inv.Notes != "" {
-				return fmt.Sprintf(`<div style="margin-top: 30px; padding: 15px; background: #f9fafb; border-radius: 5px;">
-					<strong>备注：</strong>%s</div>`, inv.Notes)
-			}
-			return ""
-		}())
+	pdf.Ln(10)
 
-	return template.HTMLEscapeString(html)
-}
+	pdf.SetFont("Arial", "B", 11)
+	pdf.SetFillColor(59, 130, 246)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.CellFormat(80, 10, "Description", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(25, 10, "Quantity", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(35, 10, "Unit Price", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(50, 10, "Amount", "1", 1, "C", true, 0, "")
 
-func htmlToPDF(html string, outputPath string) error {
-	htmlPath := outputPath + ".html"
-	err := os.WriteFile(htmlPath, []byte(html), 0644)
-	if err != nil {
-		return err
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetTextColor(0, 0, 0)
+	for _, item := range inv.Items {
+		pdf.CellFormat(80, 9, item.Description, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(25, 9, fmt.Sprintf("%.2f", item.Quantity), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(35, 9, fmt.Sprintf("¥%.2f", item.UnitPrice), "1", 0, "R", false, 0, "")
+		pdf.CellFormat(50, 9, fmt.Sprintf("¥%.2f", item.Amount), "1", 1, "R", false, 0, "")
 	}
-	defer os.Remove(htmlPath)
 
-	cmd := "chrome"
-	args := []string{"--headless", "--disable-gpu", "--no-sandbox", "--print-to-pdf=" + outputPath, htmlPath}
+	pdf.Ln(5)
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(140, 8, "Subtotal:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(50, 8, fmt.Sprintf("¥%.2f", inv.Subtotal), "", 1, "R", false, 0, "")
 
-	_ = cmd
-	_ = args
+	pdf.CellFormat(140, 8, fmt.Sprintf("Tax (%.1f%%):", inv.TaxRate), "", 0, "R", false, 0, "")
+	pdf.CellFormat(50, 8, fmt.Sprintf("¥%.2f", inv.TaxAmount), "", 1, "R", false, 0, "")
 
-	return fmt.Errorf("PDF generation requires Chrome/Chromium installed. Please install it and ensure 'chrome' is in PATH")
+	pdf.SetFont("Arial", "B", 14)
+	pdf.CellFormat(140, 10, "Total:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(50, 10, fmt.Sprintf("¥%.2f", inv.Total), "", 1, "R", false, 0, "")
+
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(140, 8, "Paid:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(50, 8, fmt.Sprintf("¥%.2f", inv.PaidAmount), "", 1, "R", false, 0, "")
+
+	pdf.SetTextColor(239, 68, 68)
+	pdf.CellFormat(140, 8, "Unpaid:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(50, 8, fmt.Sprintf("¥%.2f", inv.Total-inv.PaidAmount), "", 1, "R", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+
+	if len(inv.Payments) > 0 {
+		pdf.Ln(10)
+		pdf.SetFont("Arial", "B", 12)
+		pdf.CellFormat(0, 10, "Payment History", "", 1, "L", false, 0, "")
+
+		pdf.SetFont("Arial", "B", 10)
+		pdf.SetFillColor(245, 245, 245)
+		pdf.CellFormat(60, 8, "Date", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(60, 8, "Method", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(70, 8, "Amount", "1", 1, "C", true, 0, "")
+
+		pdf.SetFont("Arial", "", 10)
+		for _, p := range inv.Payments {
+			pdf.CellFormat(60, 8, p.PaymentDate, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(60, 8, p.Method, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(70, 8, fmt.Sprintf("¥%.2f", p.Amount), "1", 1, "R", false, 0, "")
+		}
+	}
+
+	if inv.Notes != "" {
+		pdf.Ln(10)
+		pdf.SetFont("Arial", "B", 11)
+		pdf.CellFormat(0, 8, "Notes:", "", 1, "L", false, 0, "")
+		pdf.SetFont("Arial", "", 10)
+		pdf.SetFillColor(249, 250, 251)
+		pdf.MultiCell(0, 7, inv.Notes, "1", "L", true)
+	}
+
+	return pdf.OutputFileAndClose(outputPath)
 }
