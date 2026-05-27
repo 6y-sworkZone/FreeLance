@@ -1,0 +1,161 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+
+{{if $data.activeTimer}}
+<div class="card timer-active">
+    <h3>正在计时</h3>
+    <div class="timer-display-large" id="liveTimer" data-start="{{$data.activeTimer.StartTime.Format "2006-01-02T15:04:05"}}">00:00:00</div>
+    <div class="timer-info">
+        <span>{{$data.activeTimer.ProjectName}}</span>
+        <span>{{$data.activeTimer.Description}}</span>
+    </div>
+    <a href="/time/stop?id={{$data.activeTimer.ID}}" class="btn btn-danger">停止计时</a>
+</div>
+{{end}}
+
+<div class="time-grid">
+    <div class="card">
+        <div class="card-header">
+            <h3>启动计时器</h3>
+        </div>
+        <form method="POST" action="/time/start" class="timer-form">
+            <div class="form-group">
+                <label>选择项目 *</label>
+                <select name="project_id" required>
+                    <option value="">选择项目</option>
+                    {{range $data.projects}}
+                    <option value="{{.ID}}">{{.Name}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>工作描述</label>
+                <input type="text" name="description" placeholder="描述当前工作...">
+            </div>
+            <div class="form-group">
+                <label>时薪 ({{$user.Currency}})</label>
+                <input type="number" name="rate" step="0.01" value="{{$data.defaultRate}}">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                开始计时
+            </button>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>手动补录</h3>
+        </div>
+        <form method="POST" action="/time/manual" class="timer-form">
+            <div class="form-group">
+                <label>选择项目 *</label>
+                <select name="project_id" required>
+                    <option value="">选择项目</option>
+                    {{range $data.projects}}
+                    <option value="{{.ID}}">{{.Name}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>工作描述</label>
+                <input type="text" name="description" placeholder="工作描述...">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>日期</label>
+                    <input type="date" name="date" value="{{$data.today}}">
+                </div>
+                <div class="form-group">
+                    <label>开始时间</label>
+                    <input type="time" name="start_time" required>
+                </div>
+                <div class="form-group">
+                    <label>结束时间</label>
+                    <input type="time" name="end_time" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>时薪 ({{$user.Currency}})</label>
+                <input type="number" name="rate" step="0.01" value="{{$data.defaultRate}}">
+            </div>
+            <button type="submit" class="btn btn-secondary btn-block">补录工时</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>工时记录</h3>
+        <div class="card-actions">
+            <form method="GET" action="/time">
+                <input type="date" name="date" value="{{$data.dateFilter}}">
+                <select name="project_id">
+                    <option value="">所有项目</option>
+                    {{range $data.projects}}
+                    <option value="{{.ID}}" {{if eq (printf "%d" .ID) $data.projectFilter}}selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary">筛选</button>
+            </form>
+            <a href="/time/export" class="btn btn-secondary btn-sm">导出CSV</a>
+        </div>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>日期</th>
+                <th>项目</th>
+                <th>描述</th>
+                <th>时长</th>
+                <th>时薪</th>
+                <th>金额</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $data.entries}}
+            <tr>
+                <td>{{.Date}}</td>
+                <td>{{.ProjectName}} <small>({{.ClientName}})</small></td>
+                <td>{{.Description}}</td>
+                <td>{{formatDuration .DurationMinutes}}</td>
+                <td>¥{{printf "%.0f" .Rate}}</td>
+                <td>¥{{printf "%.0f" .Amount}}</td>
+                <td><a href="/time/delete?id={{.ID}}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除?')">删除</a></td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{if not $data.entries}}
+    <div class="empty-state">暂无工时记录</div>
+    {{end}}
+</div>
+
+{{if $data.dailySummary}}
+<div class="card">
+    <div class="card-header">
+        <h3>本周工时汇总</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>日期</th>
+                <th>工时</th>
+                <th>金额</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $data.dailySummary}}
+            <tr>
+                <td>{{.Date}}</td>
+                <td>{{printf "%.1f" .Hours}}h</td>
+                <td>¥{{printf "%.0f" .Amount}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
+{{end}}

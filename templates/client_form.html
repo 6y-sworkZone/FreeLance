@@ -1,0 +1,69 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+
+<div class="card">
+    <div class="card-header">
+        <h3>{{if $data.client}}编辑客户{{else}}新建客户{{end}}</h3>
+    </div>
+    <form method="POST" action="{{if $data.client}}/clients/update{{else}}/clients/create{{end}}">
+        {{if $data.client}}
+        <input type="hidden" name="id" value="{{$data.client.ID}}">
+        {{end}}
+        <div class="form-row">
+            <div class="form-group">
+                <label>公司名称 *</label>
+                <input type="text" name="company_name" required value="{{if $data.client}}{{$data.client.CompanyName}}{{end}}">
+            </div>
+            <div class="form-group">
+                <label>联系人</label>
+                <input type="text" name="contact_person" value="{{if $data.client}}{{$data.client.ContactPerson}}{{end}}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>邮箱</label>
+                <input type="email" name="email" value="{{if $data.client}}{{$data.client.Email}}{{end}}">
+            </div>
+            <div class="form-group">
+                <label>电话</label>
+                <input type="text" name="phone" value="{{if $data.client}}{{$data.client.Phone}}{{end}}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>行业</label>
+                <input type="text" name="industry" value="{{if $data.client}}{{$data.client.Industry}}{{end}}">
+            </div>
+            <div class="form-group">
+                <label>客户来源</label>
+                <select name="source">
+                    <option value="主动联系" {{if eq (or $data.client.Source "主动联系") "主动联系"}}selected{{end}}>主动联系</option>
+                    <option value="推荐" {{if eq $data.client.Source "推荐"}}selected{{end}}>推荐</option>
+                    <option value="平台" {{if eq $data.client.Source "平台"}}selected{{end}}>平台</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <textarea name="notes" rows="3">{{if $data.client}}{{$data.client.Notes}}{{end}}</textarea>
+        </div>
+        <div class="form-group">
+            <label>标签</label>
+            <div class="tag-checkboxes">
+                {{range $data.tags}}
+                <label class="tag-checkbox">
+                    <input type="checkbox" name="tag_ids" value="{{.ID}}" 
+                        {{if $data.client}}{{range $data.selectedTagIDs}}{{if eq (printf "%d" .) (printf "%d" $.ID)}}checked{{end}}{{end}}{{end}}>
+                    <span style="background:{{.Color}}20;color:{{.Color}}">{{.Name}}</span>
+                </label>
+                {{end}}
+            </div>
+        </div>
+        <div class="form-actions">
+            <a href="/clients" class="btn btn-ghost">取消</a>
+            <button type="submit" class="btn btn-primary">{{if $data.client}}保存{{else}}创建{{end}}</button>
+        </div>
+    </form>
+</div>
+{{end}}

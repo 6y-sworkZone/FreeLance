@@ -1,0 +1,202 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+
+<div class="home-grid">
+    <div class="stats-row">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-info">
+                <div class="stat-label">今日工时</div>
+                <div class="stat-value">{{printf "%.1f" $data.todayHours}}h</div>
+                <div class="stat-sub">本周 {{printf "%.1f" $data.weekHours}}h</div>
+            </div>
+        </div>
+        <div class="stat-card stat-green">
+            <div class="stat-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div class="stat-info">
+                <div class="stat-label">本月收入</div>
+                <div class="stat-value">¥{{printf "%.0f" $data.monthRevenue}}</div>
+                <div class="stat-sub">{{$user.Currency}}</div>
+            </div>
+        </div>
+        <div class="stat-card stat-orange">
+            <div class="stat-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="stat-info">
+                <div class="stat-label">应收账款</div>
+                <div class="stat-value">¥{{printf "%.0f" $data.unpaidTotal}}</div>
+                <div class="stat-sub">{{$data.overdueCount}} 张逾期</div>
+            </div>
+        </div>
+        <div class="stat-card stat-purple">
+            <div class="stat-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+            </div>
+            <div class="stat-info">
+                <div class="stat-label">进行中项目</div>
+                <div class="stat-value">{{$data.activeProjects}}</div>
+                <div class="stat-sub">个项目</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="home-main">
+        <div class="home-left">
+            {{if $data.activeTimer}}
+            <div class="card timer-card">
+                <div class="card-header">
+                    <h3>正在计时</h3>
+                </div>
+                <div class="timer-info">
+                    <div class="timer-project">{{$data.activeTimer.ProjectName}}</div>
+                    <div class="timer-desc">{{$data.activeTimer.Description}}</div>
+                    <div class="timer-display" id="liveTimer" data-start="{{$data.activeTimer.StartTime.Format "2006-01-02T15:04:05"}}">00:00:00</div>
+                    <a href="/time/stop?id={{$data.activeTimer.ID}}" class="btn btn-danger">停止计时</a>
+                </div>
+            </div>
+            {{end}}
+
+            <div class="card">
+                <div class="card-header">
+                    <h3>今日待办</h3>
+                </div>
+                <div class="todo-list">
+                    {{if $data.overdueMilestones}}
+                    <div class="todo-section">
+                        <div class="todo-section-title" style="color:#ef4444">逾期里程碑</div>
+                        {{range $data.overdueMilestones}}
+                        <div class="todo-item">
+                            <span class="todo-dot overdue"></span>
+                            <div class="todo-content">
+                                <strong>{{.Title}}</strong>
+                                <span class="todo-meta">{{.Project}} - 到期: {{.DueDate}}</span>
+                            </div>
+                            <a href="/projects/detail?id={{.ProjectID}}" class="btn btn-sm btn-ghost">查看</a>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+
+                    {{if $data.todayMilestones}}
+                    <div class="todo-section">
+                        <div class="todo-section-title" style="color:#f59e0b">今日到期</div>
+                        {{range $data.todayMilestones}}
+                        <div class="todo-item">
+                            <span class="todo-dot today"></span>
+                            <div class="todo-content">
+                                <strong>{{.Title}}</strong>
+                                <span class="todo-meta">{{.Project}}</span>
+                            </div>
+                            <a href="/projects/detail?id={{.ProjectID}}" class="btn btn-sm btn-ghost">查看</a>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+
+                    {{if $data.unsentInvoices}}
+                    <div class="todo-section">
+                        <div class="todo-section-title" style="color:#3b82f6">待发送发票</div>
+                        {{range $data.unsentInvoices}}
+                        <div class="todo-item">
+                            <span class="todo-dot info"></span>
+                            <div class="todo-content">
+                                <strong>{{.InvoiceNumber}}</strong>
+                                <span class="todo-meta">{{.ClientName}} - ¥{{printf "%.0f" .Total}}</span>
+                            </div>
+                            <a href="/invoices/detail?id={{.ID}}" class="btn btn-sm btn-ghost">发送</a>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+
+                    {{if $data.pendingClients}}
+                    <div class="todo-section">
+                        <div class="todo-section-title" style="color:#8b5cf6">待跟进客户</div>
+                        {{range $data.pendingClients}}
+                        <div class="todo-item">
+                            <span class="todo-dot info"></span>
+                            <div class="todo-content">
+                                <strong>{{.CompanyName}}</strong>
+                                <span class="todo-meta">上次联系: {{.LastContact}}</span>
+                            </div>
+                            <a href="/clients/detail?id={{.ID}}" class="btn btn-sm btn-ghost">跟进</a>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+
+                    {{if not (or $data.overdueMilestones $data.todayMilestones $data.unsentInvoices $data.pendingClients)}}
+                    <div class="empty-state">暂无待办事项</div>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+
+        <div class="home-right">
+            <div class="card">
+                <div class="card-header">
+                    <h3>快捷操作</h3>
+                </div>
+                <div class="quick-actions">
+                    <a href="/projects/new" class="quick-action">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                        <span>新建项目</span>
+                    </a>
+                    <a href="/time" class="quick-action">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span>启动计时</span>
+                    </a>
+                    <a href="/invoices/new" class="quick-action">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
+                        <span>创建发票</span>
+                    </a>
+                    <a href="/quotes/new" class="quick-action">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                        <span>创建报价</span>
+                    </a>
+                    <a href="/clients/new" class="quick-action">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                        <span>新建客户</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3>近期动态</h3>
+                </div>
+                <div class="activity-list">
+                    {{if $data.activities}}
+                    {{range $data.activities}}
+                    <div class="activity-item">
+                        <div class="activity-icon {{.Type}}">
+                            {{if eq .Type "hour"}}
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            {{else if eq .Type "payment"}}
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                            {{else}}
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                            {{end}}
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-title">{{.Title}}</div>
+                            <div class="activity-desc">{{.Detail}}</div>
+                            <div class="activity-time">{{formatDateTime .Time}}</div>
+                        </div>
+                    </div>
+                    {{end}}
+                    {{else}}
+                    <div class="empty-state">暂无动态</div>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

@@ -1,0 +1,94 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+
+<div class="card">
+    <div class="card-header">
+        <h3>{{if $data.project}}编辑项目{{else}}新建项目{{end}}</h3>
+    </div>
+    <form method="POST" action="{{if $data.project}}/projects/update{{else}}/projects/create{{end}}">
+        {{if $data.project}}
+        <input type="hidden" name="id" value="{{$data.project.ID}}">
+        {{end}}
+        <div class="form-row">
+            <div class="form-group">
+                <label>客户 *</label>
+                <select name="client_id" required>
+                    <option value="">选择客户</option>
+                    {{range $data.clients}}
+                    <option value="{{.ID}}" {{if $data.project}}{{if eq .ID $data.project.ClientID}}selected{{end}}{{end}}>{{.CompanyName}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>项目名称 *</label>
+                <input type="text" name="name" required value="{{if $data.project}}{{$data.project.Name}}{{end}}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>项目描述</label>
+            <textarea name="description" rows="3">{{if $data.project}}{{$data.project.Description}}{{end}}</textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>项目类型</label>
+                <select name="type">
+                    <option value="开发" {{if eq (or $data.project.Type "开发") "开发"}}selected{{end}}>开发</option>
+                    <option value="设计" {{if eq $data.project.Type "设计"}}selected{{end}}>设计</option>
+                    <option value="咨询" {{if eq $data.project.Type "咨询"}}selected{{end}}>咨询</option>
+                    <option value="其他" {{if eq $data.project.Type "其他"}}selected{{end}}>其他</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>项目状态</label>
+                <select name="status">
+                    <option value="洽谈中" {{if eq (or $data.project.Status "洽谈中") "洽谈中"}}selected{{end}}>洽谈中</option>
+                    <option value="进行中" {{if eq $data.project.Status "进行中"}}selected{{end}}>进行中</option>
+                    <option value="已交付" {{if eq $data.project.Status "已交付"}}selected{{end}}>已交付</option>
+                    <option value="已归档" {{if eq $data.project.Status "已归档"}}selected{{end}}>已归档</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>时薪 ({{$user.Currency}})</label>
+                <input type="number" name="rate" step="0.01" value="{{if $data.project}}{{$data.project.Rate}}{{else}}{{$user.HourlyRate}}{{end}}">
+            </div>
+            <div class="form-group">
+                <label>预计工时 (小时)</label>
+                <input type="number" name="estimated_hours" step="0.5" value="{{if $data.project}}{{$data.project.EstimatedHours}}{{end}}">
+            </div>
+            <div class="form-group">
+                <label>预算 ({{$user.Currency}})</label>
+                <input type="number" name="budget" step="0.01" value="{{if $data.project}}{{$data.project.Budget}}{{end}}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>开始日期</label>
+                <input type="date" name="start_date" value="{{if $data.project}}{{$data.project.StartDate}}{{end}}">
+            </div>
+            <div class="form-group">
+                <label>截止日期</label>
+                <input type="date" name="due_date" value="{{if $data.project}}{{$data.project.DueDate}}{{end}}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>标签</label>
+            <div class="tag-checkboxes">
+                {{range $data.tags}}
+                <label class="tag-checkbox">
+                    <input type="checkbox" name="tag_ids" value="{{.ID}}"
+                        {{if $data.project}}{{range $data.selectedTagIDs}}{{if eq (printf "%d" .) (printf "%d" $.ID)}}checked{{end}}{{end}}{{end}}>
+                    <span style="background:{{.Color}}20;color:{{.Color}}">{{.Name}}</span>
+                </label>
+                {{end}}
+            </div>
+        </div>
+        <div class="form-actions">
+            <a href="/projects" class="btn btn-ghost">取消</a>
+            <button type="submit" class="btn btn-primary">{{if $data.project}}保存{{else}}创建{{end}}</button>
+        </div>
+    </form>
+</div>
+{{end}}

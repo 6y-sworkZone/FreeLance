@@ -1,0 +1,26 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+
+<div class="card">
+    <div class="card-header">
+        <h3>项目标签管理</h3>
+    </div>
+    <form method="POST" action="/projects/tags" class="tag-form">
+        <input type="text" name="name" placeholder="标签名称" required>
+        <input type="color" name="color" value="#10b981">
+        <button type="submit" class="btn btn-primary btn-sm">添加标签</button>
+    </form>
+    <div class="tag-list">
+        {{range .Data}}
+        <div class="tag-item">
+            <span class="tag" style="background:{{.Color}}20;color:{{.Color}}">{{.Name}}</span>
+            <a href="/projects/tags/delete?id={{.ID}}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除?')">删除</a>
+        </div>
+        {{end}}
+        {{if not .Data}}
+        <div class="empty-state">暂无标签</div>
+        {{end}}
+    </div>
+</div>
+{{end}}

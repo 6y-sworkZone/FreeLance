@@ -1,0 +1,87 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+
+<div class="page-header">
+    <div class="page-actions">
+        <a href="/clients/new" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新建客户
+        </a>
+        <a href="/clients/tags" class="btn btn-secondary">标签管理</a>
+    </div>
+    <div class="search-bar">
+        <form method="GET" action="/clients">
+            <input type="text" name="search" placeholder="搜索客户..." value="{{$data.search}}">
+            <select name="tag">
+                <option value="">所有标签</option>
+                {{range $data.tags}}
+                <option value="{{.ID}}" {{if eq (printf "%d" .ID) $data.tagFilter}}selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+            <select name="source">
+                <option value="">所有来源</option>
+                <option value="推荐" {{if eq $data.sourceFilter "推荐"}}selected{{end}}>推荐</option>
+                <option value="平台" {{if eq $data.sourceFilter "平台"}}selected{{end}}>平台</option>
+                <option value="主动联系" {{if eq $data.sourceFilter "主动联系"}}selected{{end}}>主动联系</option>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm">搜索</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>公司名称</th>
+                <th>联系人</th>
+                <th>联系方式</th>
+                <th>行业</th>
+                <th>来源</th>
+                <th>标签</th>
+                <th>项目数</th>
+                <th>总营收</th>
+                <th>评分</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $data.clients}}
+            <tr>
+                <td>
+                    <a href="/clients/detail?id={{.ID}}" class="client-name">{{.CompanyName}}</a>
+                </td>
+                <td>{{.ContactPerson}}</td>
+                <td>
+                    <div>{{.Email}}</div>
+                    <small>{{.Phone}}</small>
+                </td>
+                <td>{{.Industry}}</td>
+                <td><span class="badge badge-info">{{.Source}}</span></td>
+                <td>
+                    {{range .Tags}}
+                    <span class="tag" style="background:{{.Color}}20;color:{{.Color}}">{{.Name}}</span>
+                    {{end}}
+                </td>
+                <td>{{.ProjectCount}}</td>
+                <td>¥{{printf "%.0f" .TotalRevenue}}</td>
+                <td>
+                    <div class="score-bar">
+                        <div class="score-fill" style="width:{{.ValueScore}}%"></div>
+                    </div>
+                    <small>{{printf "%.0f" .ValueScore}}/100</small>
+                </td>
+                <td>
+                    <a href="/clients/edit?id={{.ID}}" class="btn btn-sm btn-ghost">编辑</a>
+                    <a href="/clients/delete?id={{.ID}}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除?')">删除</a>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{if not $data.clients}}
+    <div class="empty-state">暂无客户数据</div>
+    {{end}}
+</div>
+{{end}}

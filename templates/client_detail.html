@@ -1,0 +1,118 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+{{$client := $data.client}}
+
+<div class="detail-header">
+    <div>
+        <h2>{{$client.CompanyName}}</h2>
+        <div class="detail-meta">
+            <span>{{$client.ContactPerson}}</span>
+            <span>{{$client.Email}}</span>
+            <span>{{$client.Phone}}</span>
+            <span class="badge badge-info">{{$client.Source}}</span>
+        </div>
+        <div class="detail-tags">
+            {{range $client.Tags}}
+            <span class="tag" style="background:{{.Color}}20;color:{{.Color}}">{{.Name}}</span>
+            {{end}}
+        </div>
+    </div>
+    <div class="detail-actions">
+        <a href="/clients/edit?id={{$client.ID}}" class="btn btn-primary">编辑</a>
+    </div>
+</div>
+
+<div class="detail-stats">
+    <div class="stat-card stat-small">
+        <div class="stat-label">合作项目</div>
+        <div class="stat-value">{{$client.ProjectCount}}</div>
+    </div>
+    <div class="stat-card stat-small">
+        <div class="stat-label">累计营收</div>
+        <div class="stat-value">¥{{printf "%.0f" $client.TotalRevenue}}</div>
+    </div>
+    <div class="stat-card stat-small">
+        <div class="stat-label">客户评分</div>
+        <div class="stat-value">{{printf "%.0f" $client.ValueScore}}/100</div>
+    </div>
+    <div class="stat-card stat-small">
+        <div class="stat-label">行业</div>
+        <div class="stat-value">{{or $client.Industry "-"}}</div>
+    </div>
+</div>
+
+<div class="detail-grid">
+    <div class="card">
+        <div class="card-header">
+            <h3>沟通记录</h3>
+        </div>
+        <form method="POST" action="/clients/communication/add" class="comm-form">
+            <input type="hidden" name="client_id" value="{{$client.ID}}">
+            <div class="form-row">
+                <select name="type" required>
+                    <option value="">类型</option>
+                    <option value="电话">电话</option>
+                    <option value="邮件">邮件</option>
+                    <option value="会议">会议</option>
+                    <option value="微信">微信</option>
+                    <option value="其他">其他</option>
+                </select>
+                <input type="datetime-local" name="occurred_at" required>
+            </div>
+            <textarea name="content" placeholder="沟通内容..." required></textarea>
+            <button type="submit" class="btn btn-primary btn-sm">添加记录</button>
+        </form>
+        <div class="timeline">
+            {{range $data.communications}}
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        <span class="badge badge-secondary">{{.Type}}</span>
+                        <span class="timeline-date">{{formatDateTime .OccurredAt}}</span>
+                    </div>
+                    <p>{{.Content}}</p>
+                    <a href="/clients/communication/delete?id={{.ID}}&client_id={{$client.ID}}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除?')">删除</a>
+                </div>
+            </div>
+            {{end}}
+            {{if not $data.communications}}
+            <div class="empty-state">暂无沟通记录</div>
+            {{end}}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>相关项目</h3>
+        </div>
+        <div class="project-list">
+            {{range $data.projects}}
+            <div class="project-item">
+                <div class="project-info">
+                    <a href="/projects/detail?id={{.ID}}" class="project-name">{{.Name}}</a>
+                    <div class="project-meta">
+                        <span class="badge badge-type">{{.Type}}</span>
+                        <span class="badge status-{{.Status}}">{{.Status}}</span>
+                    </div>
+                </div>
+                <div class="project-due">{{.DueDate}}</div>
+            </div>
+            {{end}}
+            {{if not $data.projects}}
+            <div class="empty-state">暂无相关项目</div>
+            {{end}}
+        </div>
+    </div>
+
+    {{if $client.Notes}}
+    <div class="card">
+        <div class="card-header">
+            <h3>备注</h3>
+        </div>
+        <p style="padding:16px;white-space:pre-wrap;">{{$client.Notes}}</p>
+    </div>
+    {{end}}
+</div>
+{{end}}

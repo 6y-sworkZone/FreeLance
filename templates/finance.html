@@ -1,0 +1,212 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+
+<div class="page-header">
+    <div class="search-bar">
+        <form method="GET" action="/finance">
+            <select name="year">
+                <option value="2024" {{if eq $data.year "2024"}}selected{{end}}>2024</option>
+                <option value="2025" {{if eq $data.year "2025"}}selected{{end}}>2025</option>
+                <option value="2026" {{if eq $data.year "2026"}}selected{{end}}>2026</option>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm">切换年份</button>
+        </form>
+    </div>
+</div>
+
+<div class="stats-row">
+    <div class="stat-card stat-blue">
+        <div class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        </div>
+        <div class="stat-info">
+            <div class="stat-label">{{$data.year}}年总收入</div>
+            <div class="stat-value">¥{{printf "%.0f" $data.totalRevenue}}</div>
+        </div>
+    </div>
+    <div class="stat-card stat-orange">
+        <div class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="stat-info">
+            <div class="stat-label">应收账款</div>
+            <div class="stat-value">¥{{printf "%.0f" $data.unpaidTotal}}</div>
+            <div class="stat-sub">{{$data.unpaidCount}} 张发票</div>
+        </div>
+    </div>
+    <div class="stat-card stat-green">
+        <div class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        </div>
+        <div class="stat-info">
+            <div class="stat-label">本月环比</div>
+            <div class="stat-value">{{printf "%.1f" $data.monthlyGrowth}}%</div>
+        </div>
+    </div>
+    <div class="stat-card stat-purple">
+        <div class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+        </div>
+        <div class="stat-info">
+            <div class="stat-label">年度同比</div>
+            <div class="stat-value">{{printf "%.1f" $data.yearlyGrowth}}%</div>
+        </div>
+    </div>
+</div>
+
+<div class="finance-grid">
+    <div class="card">
+        <div class="card-header">
+            <h3>月度收入趋势</h3>
+        </div>
+        <canvas id="revenueChart" height="100"></canvas>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>收入来源分布 (按客户)</h3>
+        </div>
+        <canvas id="sourceChart" height="100"></canvas>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>项目类型收入</h3>
+        </div>
+        <canvas id="typeChart" height="100"></canvas>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>应收账款</h3>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>发票号</th>
+                    <th>客户</th>
+                    <th>到期日</th>
+                    <th>未收金额</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range $data.unpaidInvoices}}
+                <tr>
+                    <td><a href="/invoices/detail?id={{.ID}}">{{.InvoiceNumber}}</a></td>
+                    <td>{{.ClientName}}</td>
+                    <td>{{.DueDate}}{{if gt .DaysOverdue 0}} <small style="color:#ef4444">(逾期{{.DaysOverdue}}天)</small>{{end}}</td>
+                    <td>¥{{printf "%.2f" .Unpaid}}</td>
+                    <td><span class="badge status-{{.Status}}">{{.Status}}</span></td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{if not $data.unpaidInvoices}}
+        <div class="empty-state">无应收账款</div>
+        {{end}}
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>年度税务概览</h3>
+        </div>
+        <div class="tax-summary">
+            <div class="tax-row">
+                <span>总收入</span>
+                <span>¥{{printf "%.2f" $data.totalRevenue}}</span>
+            </div>
+            <div class="tax-row">
+                <span>应税额 (约70%)</span>
+                <span>¥{{printf "%.2f" $data.taxableIncome}}</span>
+            </div>
+            <div class="tax-row">
+                <span>税率 ({{printf "%.1f" $user.TaxRate}}%)</span>
+                <span>{{printf "%.1f" $user.TaxRate}}%</span>
+            </div>
+            <div class="tax-row tax-estimate">
+                <span>预估税额</span>
+                <span>¥{{printf "%.2f" $data.estimatedTax}}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>现金流预测</h3>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>类型</th>
+                    <th>描述</th>
+                    <th>预估金额</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range $data.cashflow}}
+                <tr>
+                    <td>{{.Date}}</td>
+                    <td><span class="badge badge-info">{{.Type}}</span></td>
+                    <td>{{.Description}}</td>
+                    <td>¥{{printf "%.2f" .Amount}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{if not $data.cashflow}}
+        <div class="empty-state">暂无预测数据</div>
+        {{end}}
+    </div>
+</div>
+
+<script>
+const monthlyData = {{json $data.monthlyData}};
+const revenueCtx = document.getElementById('revenueChart');
+new Chart(revenueCtx, {
+    type: 'bar',
+    data: {
+        labels: monthlyData.map(d => d.month),
+        datasets: [{
+            label: '收入',
+            data: monthlyData.map(d => d.income),
+            backgroundColor: '#3b82f6'
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+    }
+});
+
+const sourceData = {{json $data.incomeSources}};
+const sourceCtx = document.getElementById('sourceChart');
+new Chart(sourceCtx, {
+    type: 'doughnut',
+    data: {
+        labels: sourceData.map(d => d.client_name),
+        datasets: [{
+            data: sourceData.map(d => d.amount),
+            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+        }]
+    },
+    options: { responsive: true }
+});
+
+const typeData = {{json $data.typeIncomes}};
+const typeCtx = document.getElementById('typeChart');
+new Chart(typeCtx, {
+    type: 'polarArea',
+    data: {
+        labels: typeData.map(d => d.type),
+        datasets: [{
+            data: typeData.map(d => d.amount),
+            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6']
+        }]
+    },
+    options: { responsive: true }
+});
+</script>
+{{end}}

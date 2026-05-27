@@ -1,0 +1,84 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+
+<div class="card">
+    <div class="card-header">
+        <h3>{{if $data.quote}}编辑报价单{{else}}新建报价单{{end}}</h3>
+    </div>
+    <form method="POST" action="{{if $data.quote}}/quotes/update{{else}}/quotes/create{{end}}" id="quoteForm">
+        <div class="form-row">
+            <div class="form-group">
+                <label>客户 *</label>
+                <select name="client_id" required>
+                    <option value="">选择客户</option>
+                    {{range $data.clients}}
+                    <option value="{{.ID}}">{{.CompanyName}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>关联项目</label>
+                <select name="project_id">
+                    <option value="">选择项目</option>
+                    {{range $data.projects}}
+                    <option value="{{.ID}}">{{.Name}}</option>
+                    {{end}}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>报价日期 *</label>
+                <input type="date" name="issue_date" required value="{{.Data.today}}">
+            </div>
+            <div class="form-group">
+                <label>有效期至</label>
+                <input type="date" name="valid_until">
+            </div>
+            <div class="form-group">
+                <label>税率 (%)</label>
+                <input type="number" name="tax_rate" step="0.01" value="{{$data.taxRate}}" id="taxRate">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <textarea name="notes" rows="2"></textarea>
+        </div>
+
+        <div class="quote-items">
+            <h4>报价明细</h4>
+            <div id="itemsContainer">
+                <div class="quote-item-row">
+                    <input type="text" name="item_description[]" placeholder="描述" required>
+                    <input type="number" name="item_quantity[]" placeholder="数量" step="0.01" value="1" required>
+                    <input type="number" name="item_unit_price[]" placeholder="单价" step="0.01" value="0" required>
+                    <button type="button" class="btn btn-danger btn-sm remove-item" onclick="removeItem(this)">删除</button>
+                </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addItem()">添加明细行</button>
+        </div>
+
+        <div class="quote-summary" id="quoteSummary">
+            <div class="summary-row">
+                <span>小计：</span>
+                <span id="subtotalDisplay">¥0.00</span>
+            </div>
+            <div class="summary-row">
+                <span>税额：</span>
+                <span id="taxDisplay">¥0.00</span>
+            </div>
+            <div class="summary-row total">
+                <span>总计：</span>
+                <span id="totalDisplay">¥0.00</span>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="/quotes" class="btn btn-ghost">取消</a>
+            <button type="submit" class="btn btn-primary">创建报价单</button>
+            <button type="submit" formaction="/quotes/template/save" class="btn btn-secondary">保存为模板</button>
+        </div>
+    </form>
+</div>
+{{end}}

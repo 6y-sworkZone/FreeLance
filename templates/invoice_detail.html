@@ -1,0 +1,160 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+{{$invoice := $data.invoice}}
+
+<div class="detail-header">
+    <div>
+        <h2>发票 {{$invoice.InvoiceNumber}}</h2>
+        <div class="detail-meta">
+            <span class="badge status-{{$invoice.Status}}">{{$invoice.Status}}</span>
+            <span>{{$invoice.IssueDate}}</span>
+        </div>
+    </div>
+    <div class="detail-actions">
+        {{if eq $invoice.Status "草稿"}}
+        <a href="/invoices/status?id={{$invoice.ID}}&status=已发送" class="btn btn-primary">发送发票</a>
+        {{else if eq $invoice.Status "已发送"}}
+        <a href="/invoices/status?id={{$invoice.ID}}&status=已支付" class="btn btn-success">标记已付</a>
+        {{end}}
+        <a href="/invoices/pdf?id={{$invoice.ID}}" class="btn btn-secondary">下载PDF</a>
+        <a href="/invoices/delete?id={{$invoice.ID}}" class="btn btn-danger" onclick="return confirm('确定删除?')">删除</a>
+    </div>
+</div>
+
+<div class="invoice-preview">
+    <div class="invoice-header">
+        <div class="invoice-from">
+            <h3>{{$user.Name}}</h3>
+            <p>{{$user.Email}}</p>
+        </div>
+        <div class="invoice-to">
+            <h3>{{$invoice.ClientName}}</h3>
+            <p>{{$data.clientContact}}</p>
+            <p>{{$data.clientEmail}}</p>
+            <p>{{$data.clientPhone}}</p>
+        </div>
+    </div>
+    <div class="invoice-meta">
+        <div><strong>发票号：</strong>{{$invoice.InvoiceNumber}}</div>
+        <div><strong>开票日期：</strong>{{$invoice.IssueDate}}</div>
+        <div><strong>到期日期：</strong>{{or $invoice.DueDate "-"}}</div>
+        <div><strong>项目：</strong>{{or $invoice.ProjectName "-"}}</div>
+    </div>
+
+    <table class="invoice-table">
+        <thead>
+            <tr>
+                <th>描述</th>
+                <th>数量</th>
+                <th>单价</th>
+                <th>金额</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $invoice.Items}}
+            <tr>
+                <td>{{.Description}}</td>
+                <td class="text-center">{{printf "%.2f" .Quantity}}</td>
+                <td class="text-right">¥{{printf "%.2f" .UnitPrice}}</td>
+                <td class="text-right">¥{{printf "%.2f" .Amount}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <div class="invoice-total">
+        <div class="total-row">
+            <span>小计：</span>
+            <span>¥{{printf "%.2f" $invoice.Subtotal}}</span>
+        </div>
+        <div class="total-row">
+            <span>税额 ({{printf "%.1f" $invoice.TaxRate}}%)：</span>
+            <span>¥{{printf "%.2f" $invoice.TaxAmount}}</span>
+        </div>
+        <div class="total-row grand-total">
+            <span>总计：</span>
+            <span>¥{{printf "%.2f" $invoice.Total}}</span>
+        </div>
+        <div class="total-row">
+            <span>已收：</span>
+            <span>¥{{printf "%.2f" $invoice.PaidAmount}}</span>
+        </div>
+        <div class="total-row unpaid">
+            <span>未收：</span>
+            <span>¥{{printf "%.2f" (subtractF $invoice.Total $invoice.PaidAmount)}}</span>
+        </div>
+    </div>
+
+    {{if $invoice.Notes}}
+    <div class="invoice-notes">
+        <h4>备注</h4>
+        <p>{{$invoice.Notes}}</p>
+    </div>
+    {{end}}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>添加收款记录</h3>
+    </div>
+    <form method="POST" action="/payments/add" class="payment-form">
+        <input type="hidden" name="invoice_id" value="{{$invoice.ID}}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>金额 *</label>
+                <input type="number" name="amount" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>收款日期 *</label>
+                <input type="date" name="payment_date" required value="{{.Data.today}}">
+            </div>
+            <div class="form-group">
+                <label>收款方式</label>
+                <select name="method">
+                    <option value="银行转账">银行转账</option>
+                    <option value="支付宝">支付宝</option>
+                    <option value="微信">微信</option>
+                    <option value="现金">现金</option>
+                    <option value="其他">其他</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <input type="text" name="notes" placeholder="备注...">
+        </div>
+        <button type="submit" class="btn btn-primary">添加收款</button>
+    </form>
+</div>
+
+{{if $invoice.Payments}}
+<div class="card">
+    <div class="card-header">
+        <h3>收款记录</h3>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>日期</th>
+                <th>金额</th>
+                <th>方式</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $invoice.Payments}}
+            <tr>
+                <td>{{.PaymentDate}}</td>
+                <td>¥{{printf "%.2f" .Amount}}</td>
+                <td>{{.Method}}</td>
+                <td>{{or .Notes "-"}}</td>
+                <td><a href="/payments/delete?id={{.ID}}&invoice_id={{$invoice.ID}}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除?')">删除</a></td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
+{{end}}

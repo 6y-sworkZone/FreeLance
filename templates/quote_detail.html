@@ -1,0 +1,87 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+{{$quote := .Data}}
+
+<div class="detail-header">
+    <div>
+        <h2>报价单 {{$quote.QuoteNumber}}</h2>
+        <div class="detail-meta">
+            <span class="badge status-{{$quote.Status}}">{{$quote.Status}}</span>
+            <span>{{$quote.IssueDate}}</span>
+        </div>
+    </div>
+    <div class="detail-actions">
+        {{if eq $quote.Status "草稿"}}
+        <a href="/quotes/status?id={{$quote.ID}}&status=已发送" class="btn btn-primary">发送</a>
+        {{else if eq $quote.Status "已发送"}}
+        <a href="/quotes/status?id={{$quote.ID}}&status=已接受" class="btn btn-success">接受</a>
+        <a href="/quotes/status?id={{$quote.ID}}&status=已拒绝" class="btn btn-danger">拒绝</a>
+        {{else if eq $quote.Status "已接受"}}
+        <a href="/quotes/convert?id={{$quote.ID}}" class="btn btn-primary">转为发票</a>
+        {{end}}
+        <a href="/quotes/delete?id={{$quote.ID}}" class="btn btn-danger" onclick="return confirm('确定删除?')">删除</a>
+    </div>
+</div>
+
+<div class="quote-preview">
+    <div class="quote-header">
+        <div class="quote-from">
+            <h3>{{$user.Name}}</h3>
+            <p>{{$user.Email}}</p>
+        </div>
+        <div class="quote-to">
+            <h3>{{$quote.ClientName}}</h3>
+        </div>
+    </div>
+    <div class="quote-meta">
+        <div><strong>报价单号：</strong>{{$quote.QuoteNumber}}</div>
+        <div><strong>报价日期：</strong>{{$quote.IssueDate}}</div>
+        <div><strong>有效期至：</strong>{{or $quote.ValidUntil "-"}}</div>
+        <div><strong>项目：</strong>{{or $quote.ProjectName "-"}}</div>
+    </div>
+
+    <table class="quote-table">
+        <thead>
+            <tr>
+                <th>描述</th>
+                <th>数量</th>
+                <th>单价</th>
+                <th>金额</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $quote.Items}}
+            <tr>
+                <td>{{.Description}}</td>
+                <td class="text-center">{{printf "%.2f" .Quantity}}</td>
+                <td class="text-right">¥{{printf "%.2f" .UnitPrice}}</td>
+                <td class="text-right">¥{{printf "%.2f" .Amount}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <div class="quote-total">
+        <div class="total-row">
+            <span>小计：</span>
+            <span>¥{{printf "%.2f" $quote.Subtotal}}</span>
+        </div>
+        <div class="total-row">
+            <span>税额 ({{printf "%.1f" $quote.TaxRate}}%)：</span>
+            <span>¥{{printf "%.2f" $quote.TaxAmount}}</span>
+        </div>
+        <div class="total-row grand-total">
+            <span>总计：</span>
+            <span>¥{{printf "%.2f" $quote.Total}}</span>
+        </div>
+    </div>
+
+    {{if $quote.Notes}}
+    <div class="quote-notes">
+        <h4>备注</h4>
+        <p>{{$quote.Notes}}</p>
+    </div>
+    {{end}}
+</div>
+{{end}}

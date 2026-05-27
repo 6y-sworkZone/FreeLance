@@ -1,0 +1,171 @@
+{{define "content"}}
+{{$user := .User}}
+{{$data := .Data}}
+{{$project := $data.project}}
+
+<div class="detail-header">
+    <div>
+        <h2>{{$project.Name}}</h2>
+        <div class="detail-meta">
+            <a href="/clients/detail?id={{$project.ClientID}}">{{$project.ClientName}}</a>
+            <span class="badge badge-type">{{$project.Type}}</span>
+            <span class="badge status-{{$project.Status}}">{{$project.Status}}</span>
+        </div>
+        <div class="detail-tags">
+            {{range $project.Tags}}
+            <span class="tag" style="background:{{.Color}}20;color:{{.Color}}">{{.Name}}</span>
+            {{end}}
+        </div>
+    </div>
+    <div class="detail-actions">
+        <a href="/projects/edit?id={{$project.ID}}" class="btn btn-primary">编辑</a>
+        <a href="/time" class="btn btn-secondary">开始计时</a>
+    </div>
+</div>
+
+<div class="detail-stats">
+    <div class="stat-card stat-small">
+        <div class="stat-label">总工时</div>
+        <div class="stat-value">{{printf "%.1f" $project.TotalHours}}h</div>
+    </div>
+    <div class="stat-card stat-small">
+        <div class="stat-label">预估工时</div>
+        <div class="stat-value">{{printf "%.0f" $project.EstimatedHours}}h</div>
+    </div>
+    <div class="stat-card stat-small">
+        <div class="stat-label">已完成金额</div>
+        <div class="stat-value">¥{{printf "%.0f" $project.TotalAmount}}</div>
+    </div>
+    <div class="stat-card stat-small">
+        <div class="stat-label">时薪</div>
+        <div class="stat-value">¥{{printf "%.0f" $project.Rate}}/h</div>
+    </div>
+</div>
+
+<div class="detail-grid">
+    <div class="card">
+        <div class="card-header">
+            <h3>项目时间线</h3>
+        </div>
+        <div class="timeline">
+            {{range $data.milestones}}
+            <div class="timeline-item {{.Status}}">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        <strong>{{.Title}}</strong>
+                        <span class="timeline-date">{{.DueDate}}</span>
+                        <span class="badge status-{{.Status}}">{{.Status}}</span>
+                    </div>
+                    {{if .Description}}<p>{{.Description}}</p>{{end}}
+                    {{if .Deliverable}}<small>交付物: {{.Deliverable}}</small>{{end}}
+                    <div class="milestone-actions">
+                        <a href="/milestones/status?id={{.ID}}&status=已完成&project_id={{$project.ID}}" class="btn btn-sm btn-success">完成</a>
+                        <a href="/milestones/status?id={{.ID}}&status=进行中&project_id={{$project.ID}}" class="btn btn-sm btn-primary">进行中</a>
+                        <a href="/milestones/delete?id={{.ID}}&project_id={{$project.ID}}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除?')">删除</a>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+            {{if not $data.milestones}}
+            <div class="empty-state">暂无里程碑</div>
+            {{end}}
+        </div>
+        <form method="POST" action="/milestones/create" class="milestone-form">
+            <input type="hidden" name="project_id" value="{{$project.ID}}">
+            <div class="form-row">
+                <input type="text" name="title" placeholder="里程碑标题" required>
+                <input type="date" name="due_date">
+            </div>
+            <div class="form-row">
+                <input type="text" name="deliverable" placeholder="交付物">
+            </div>
+            <textarea name="description" placeholder="描述..."></textarea>
+            <button type="submit" class="btn btn-primary btn-sm">添加里程碑</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>文件管理</h3>
+        </div>
+        <form method="POST" action="/files/upload" enctype="multipart/form-data" class="file-form">
+            <input type="hidden" name="project_id" value="{{$project.ID}}">
+            <select name="category">
+                <option value="合同">合同</option>
+                <option value="需求文档">需求文档</option>
+                <option value="设计稿">设计稿</option>
+                <option value="其他">其他</option>
+            </select>
+            <input type="file" name="file" required>
+            <button type="submit" class="btn btn-primary btn-sm">上传</button>
+        </form>
+        <div class="file-list">
+            {{range $data.files}}
+            <div class="file-item">
+                <div class="file-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div class="file-info">
+                    <div class="file-name">{{.OriginalName}}</div>
+                    <div class="file-meta">
+                        <span class="badge badge-info">{{.Category}}</span>
+                        <small>{{.Size}} bytes</small>
+                        <small>{{formatDate .UploadedAt}}</small>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <a href="/files/download?id={{.ID}}" class="btn btn-sm btn-primary">下载</a>
+                    <a href="/files/delete?id={{.ID}}&project_id={{$project.ID}}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除?')">删除</a>
+                </div>
+            </div>
+            {{end}}
+            {{if not $data.files}}
+            <div class="empty-state">暂无文件</div>
+            {{end}}
+        </div>
+    </div>
+
+    {{if $project.Description}}
+    <div class="card">
+        <div class="card-header">
+            <h3>项目描述</h3>
+        </div>
+        <p style="padding:16px;white-space:pre-wrap;">{{$project.Description}}</p>
+    </div>
+    {{end}}
+
+    <div class="card">
+        <div class="card-header">
+            <h3>最近工时记录</h3>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>开始时间</th>
+                    <th>结束时间</th>
+                    <th>描述</th>
+                    <th>时长</th>
+                    <th>金额</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range $data.timeEntries}}
+                <tr>
+                    <td>{{formatDateTime .StartTime}}</td>
+                    <td>{{if .EndTime}}{{formatDateTime (derefTime .EndTime)}}{{else}}进行中{{end}}</td>
+                    <td>{{.Description}}</td>
+                    <td>{{formatDuration .DurationMinutes}}</td>
+                    <td>¥{{printf "%.0f" (multiplyF (divideF .DurationMinutes 60 1) .Rate)}}</td>
+                    <td><a href="/time/delete?id={{.ID}}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除?')">删除</a></td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{if not $data.timeEntries}}
+        <div class="empty-state">暂无工时记录</div>
+        {{end}}
+    </div>
+</div>
+{{end}}
